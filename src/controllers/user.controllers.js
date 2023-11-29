@@ -3,7 +3,7 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const sendEmail = require('../utils/sendEmail');
 const EmailCode = require('../models/EmailCode');
-const jwt = require('jsonwebtoken');
+const login = require('./login')
 
 
 const getAll = catchError(async(req, res) => {
@@ -31,9 +31,8 @@ const create = catchError(async(req, res) => {
     })
 
 
-    const link = `${frontBaseUrl}/auth/verify_email/${code}`;
-    
-
+  const link = `${frontBaseUrl}/auth/verify_email/${code}`;
+   
   await sendEmail({
     to:`${email}`,
     subject:`hello ${firstName} ${lastName} this is email verificate for user app`,
@@ -45,6 +44,43 @@ const create = catchError(async(req, res) => {
   })
     return res.status(201).json(result);
 });
+
+
+const passwordRecovery = catchError(async(req, res) => {
+  const { email, frontBaseUrl } = req.body;
+
+  const user = await User.findOne({ where: { email } })
+  const code = require('crypto').randomBytes(32).toString("hex")
+
+  await EmailCode.create({ code })
+
+  const link = `${frontBaseUrl}/auth/reset_password/${code}?id=${user.id}`;
+  await sendEmail({
+    to:`${email}`,
+    subject:`hello ${user.firstName} ${user.lastName} this is email to recover your password`,
+    html:`
+      <h1> hello ${user.firstName}</h1>
+      <br>
+      <a href="${link}">${link}</a>
+    `
+  })
+  res.sendStatus(201);
+});
+
+const resetPassword = catchError(async (req, res) => {
+  const { userId, password } = req.body
+  const encriptedPassword = await bcrypt.hash(password, 10);
+  let user = await User.findOne({ id: userId })
+  user = {
+    ...user,
+    password: encriptedPassword
+  }
+
+  await User.update(user, { where: { id: userId } })
+
+  res.sendStatus(201);
+})
+
 
 const getOne = catchError(async(req, res) => {
     const { id } = req.params;
@@ -84,25 +120,6 @@ const verifyCode = catchError(async(req, res) => {
 
 })
 
-const login = catchError(async(req, res) => {
-  const { email, password } = req.body;
-  const user = await User.findOne({ where: {email} });
-  if(!user) return res.status(401).json({ error: "invalid credentials" });
-  if(!user.isVerified) return res.status(401).json({message: "user not verified"})
-  const isValid = await bcrypt.compare(password, user.password);
-  if(!isValid) return res.status(401).json({ error: "invalid credentials" });
-  
-
-  const token = jwt.sign(
-      {user},
-      process.env.TOKEN_SECRET,
-      {expiresIn: '1d'},
-      
-  )
-
-  return res.json({user, token});
-})
-
 const getLoggedUser = catchError(async(req, res) => {
   const user = req.user;
   return res.json(user);
@@ -117,6 +134,7 @@ module.exports = {
     remove,
     update,
     verifyCode,
-    login,
-    getLoggedUser
+    getLoggedUser,
+    passwordRecovery,
+    resetPassword,
 }
