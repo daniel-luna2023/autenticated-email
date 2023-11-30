@@ -5,6 +5,7 @@ const {
     remove,
     update,
     verifyCode,
+    login,
     getLoggedUser, 
     passwordRecovery,
     resetPassword,
@@ -21,6 +22,9 @@ userRouter.route('/')
 
 userRouter.route('/verify/:code')
     .get(verifyCode);
+
+userRouter.route('/login')
+    .post(login)
 
 userRouter.route('/me')
     .get(verifyJWT, getLoggedUser);

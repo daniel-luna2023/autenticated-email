@@ -3,7 +3,8 @@ const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const sendEmail = require('../utils/sendEmail');
 const EmailCode = require('../models/EmailCode');
-const login = require('./login')
+const { use } = require('../routes');
+const jwt = require('jsonwebtoken')
 
 
 const getAll = catchError(async(req, res) => {
@@ -29,7 +30,6 @@ const create = catchError(async(req, res) => {
       code:code,
       userId:result.id
     })
-
 
   const link = `${frontBaseUrl}/auth/verify_email/${code}`;
    
@@ -127,6 +127,26 @@ const getLoggedUser = catchError(async(req, res) => {
 })
 
 
+const login = catchError(async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ where: { email } });
+  if (!user) return res.status(401).json({ error: "invalid credentials" });
+  if (!user.isVerified) return res.status(401).json({ message: "user not verified" });
+  const isValid = await bcrypt.compare(password, user.password);
+  if (!isValid) return res.status(401).json({ error: "invalid credentials" });
+
+
+  const token = jwt.sign(
+    { user },
+    process.env.TOKEN_SECRET,
+    { expiresIn: '1d' }
+
+  );
+
+  return res.json({ user, token });
+});
+
+
 module.exports = {
     getAll,
     create,
@@ -137,4 +157,6 @@ module.exports = {
     getLoggedUser,
     passwordRecovery,
     resetPassword,
+    login
+    
 }
